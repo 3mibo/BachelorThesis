@@ -39,7 +39,7 @@ def generate_prediction(
     text = build_conversation_text(processor, prompt_text, target_text=None)
     inputs = processor(
         text=text,
-        audios=[audio],
+        audio=audio,
         sampling_rate=processor.feature_extractor.sampling_rate,
         return_tensors="pt",
     )

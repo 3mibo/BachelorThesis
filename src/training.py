@@ -30,7 +30,7 @@ def build_train_example(
     full_text = build_conversation_text(processor, prompt_text, target_text)
     inputs = processor(
         text=full_text,
-        audios=[audio],
+        audio=audio,
         sampling_rate=processor.feature_extractor.sampling_rate,
         return_tensors="pt",
     )
@@ -41,7 +41,7 @@ def build_train_example(
     prompt_only_text = build_conversation_text(processor, prompt_text, target_text=None)
     prompt_inputs = processor(
         text=prompt_only_text,
-        audios=[audio],
+        audio=audio,
         sampling_rate=processor.feature_extractor.sampling_rate,
         return_tensors="pt",
     )
