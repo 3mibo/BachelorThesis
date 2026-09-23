@@ -35,19 +35,23 @@ def generate_prediction(
     # Build prompt-only text (no target)
     text = build_conversation_text(processor, prompt_text, target_text=None)
 
-    text_inputs = processor.tokenizer(text, return_tensors="pt")
-    audio_data  = load_audio(sample["path"], processor, cache=audio_cache)
-
-    device = next(model.parameters()).device
-
-    input_ids = text_inputs["input_ids"].to(device)
-    attention_mask = text_inputs["attention_mask"].to(device)
-    input_features = audio_data["input_features"].to(device)
-    feature_attention_mask = (
-        audio_data["feature_attention_mask"].to(device)
-        if audio_data["feature_attention_mask"] is not None
-        else None
+    audio = load_audio(sample["path"], processor, cache=audio_cache)
+    text = build_conversation_text(processor, prompt_text, target_text=None)
+    inputs = processor(
+        text=text,
+        audios=[audio],
+        sampling_rate=processor.feature_extractor.sampling_rate,
+        return_tensors="pt",
     )
+    device = next(model.parameters()).device
+    input_ids              = inputs["input_ids"].to(device)
+    attention_mask         = inputs["attention_mask"].to(device)
+    input_features         = inputs.get("input_features")
+    feature_attention_mask = inputs.get("feature_attention_mask")
+    if input_features is not None:
+        input_features = input_features.to(device)
+    if feature_attention_mask is not None:
+        feature_attention_mask = feature_attention_mask.to(device)
 
     output_ids = model.generate(
         input_ids=input_ids,

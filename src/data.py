@@ -230,28 +230,12 @@ def make_audio_cache() -> Dict:
     return {}
 
 
-def load_audio(path: str, processor, cache: Optional[Dict] = None):
-    """
-    Load and preprocess a single audio file.
-
-    Uses *processor* (Qwen2AudioProcessor) to obtain input_features.
-    Optionally caches results in *cache* dict keyed by path.
-    """
+def load_audio(path: str, processor, cache=None):
     import librosa
-
     if cache is not None and path in cache:
         return cache[path]
-
-    audio, sr = librosa.load(path, sr=processor.feature_extractor.sampling_rate, mono=True)
-    inputs = processor(
-        audios=[audio],
-        sampling_rate=processor.feature_extractor.sampling_rate,
-        return_tensors="pt",
-    )
-    result = {
-        "input_features":       inputs["input_features"],
-        "feature_attention_mask": inputs.get("feature_attention_mask"),
-    }
+    target_sr = processor.feature_extractor.sampling_rate
+    audio, _ = librosa.load(path, sr=target_sr, mono=True)
     if cache is not None:
-        cache[path] = result
-    return result
+        cache[path] = audio
+    return audio

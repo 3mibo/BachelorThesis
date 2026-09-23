@@ -18,53 +18,42 @@ def build_train_example(
     processor,
     prompt_text: str,
     target_text: str,
-    audio_cache: Optional[Dict] = None,
+    audio_cache=None,
 ) -> Dict:
-    """
-    Build a single training example (input_ids, labels, attention_mask,
-    input_features, feature_attention_mask).
-
-    The loss is masked for the prompt portion so that only the target token(s)
-    are trained.
-    """
     from src.data import load_audio
     from src.model import build_conversation_text
 
-    # ------------------------------------------------------------------
-    # 1. Build the full chat text (prompt + target)
-    # ------------------------------------------------------------------
+    # 1. Load raw audio waveform
+    audio = load_audio(sample["path"], processor, cache=audio_cache)
+
+    # 2. Call processor with text+audio together (required by Qwen2AudioProcessor)
     full_text = build_conversation_text(processor, prompt_text, target_text)
+    inputs = processor(
+        text=full_text,
+        audios=[audio],
+        sampling_rate=processor.feature_extractor.sampling_rate,
+        return_tensors="pt",
+    )
+    input_ids = inputs["input_ids"]
 
-    # ------------------------------------------------------------------
-    # 2. Tokenise
-    # ------------------------------------------------------------------
-    text_inputs = processor.tokenizer(full_text, return_tensors="pt")
-    input_ids = text_inputs["input_ids"]
-
-    # ------------------------------------------------------------------
-    # 3. Build labels: mask everything up to (and including) the
-    #    <|im_start|>assistant newline token so only the answer is in loss.
-    # ------------------------------------------------------------------
+    # 3. Mask prompt tokens from loss — only the answer contributes
     labels = input_ids.clone()
-
-    # Find the assistant-turn start.  We tokenise the prompt-only text and
-    # use its length as the mask boundary.
     prompt_only_text = build_conversation_text(processor, prompt_text, target_text=None)
-    prompt_ids = processor.tokenizer(prompt_only_text, return_tensors="pt")["input_ids"]
-    prompt_len = prompt_ids.shape[1]
-    labels[:, :prompt_len] = -100          # mask prompt tokens from loss
-
-    # ------------------------------------------------------------------
-    # 4. Load audio features
-    # ------------------------------------------------------------------
-    audio_data = load_audio(sample["path"], processor, cache=audio_cache)
+    prompt_inputs = processor(
+        text=prompt_only_text,
+        audios=[audio],
+        sampling_rate=processor.feature_extractor.sampling_rate,
+        return_tensors="pt",
+    )
+    prompt_len = prompt_inputs["input_ids"].shape[1]
+    labels[:, :prompt_len] = -100
 
     return {
         "input_ids":              input_ids,
         "labels":                 labels,
-        "attention_mask":         text_inputs["attention_mask"],
-        "input_features":         audio_data["input_features"],
-        "feature_attention_mask": audio_data["feature_attention_mask"],
+        "attention_mask":         inputs["attention_mask"],
+        "input_features":         inputs.get("input_features"),
+        "feature_attention_mask": inputs.get("feature_attention_mask"),
     }
 
 
